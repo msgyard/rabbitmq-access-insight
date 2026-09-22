@@ -129,6 +129,58 @@ merge_user_test() ->
                  rabbit_access_insight_model:merge_user(A, B)).
 
 %%----------------------------------------------------------------------------
+%% replication rows
+
+sync_rows_test_() ->
+    {setup, fun() -> rabbit_access_insight_model:create_tables() end,
+     fun(_) -> [ets:delete(T) || T <- ?AGG_TABLES ++ ?LOCAL_TABLES] end,
+     fun(_) ->
+         O = {n2, <<"e2">>},
+         rabbit_access_insight_model:new_origin(O, 0),
+         L = ?LIMITS,
+         [rabbit_access_insight_model:apply(O, ?REC(S, 1000 + S, session_open,
+             #{user => U, vhost => <<"/">>}), L) || {S, U} <- [{1, <<"a">>}, {2, <<"b">>}, {3, <<"a">>}]],
+         All = rabbit_access_insight_sync:entries_since(O, 0),
+         Since2 = rabbit_access_insight_sync:entries_since(O, 2),
+         %% store a stale copy of "a" (v=1) over the current one (v=3): ignored
+         Stale = {{O, <<"a">>}, #{v => 1, sessions => 1}},
+         ok = rabbit_access_insight_sync:store_rows(O, #{meta => #{v => 1}, user => [Stale], daily => [], fail => []}, replica),
+         [{_, A}] = ets:lookup(?T_USER, {O, <<"a">>}),
+         [{_, Meta}] = ets:lookup(?T_ORIGIN, O),
+         [?_assertEqual(2, length(maps:get(user, All))),
+          ?_assertEqual([<<"a">>], [U || {{_, U}, _} <- maps:get(user, Since2)]),
+          ?_assertEqual(not_found, rabbit_access_insight_sync:entries_since({x, <<"y">>}, 0)),
+          ?_assertEqual(2, maps:get(sessions, A)),
+          ?_assertEqual(3, maps:get(v, Meta))]
+     end}.
+
+%%----------------------------------------------------------------------------
+%% output formats
+
+metrics_text_test() ->
+    T = iolist_to_binary(rabbit_access_insight_metrics:render_text(
+          [{"m_total", counter, "help", [{[{"user", <<"a\"b">>}], 3}]},
+           {"h", histogram, "hh", [{[{"vhost", <<"/">>}], [{1, 1}, {infinity, 2}], 2, 1.5}]}])),
+    ?assertNotEqual(nomatch, binary:match(T, <<"# TYPE m_total counter\n">>)),
+    ?assertNotEqual(nomatch, binary:match(T, <<"m_total{user=\"a\\\"b\"} 3\n">>)),
+    ?assertNotEqual(nomatch, binary:match(T, <<"h_bucket{vhost=\"/\",le=\"+Inf\"} 2\n">>)),
+    ?assertNotEqual(nomatch, binary:match(T, <<"h_sum{vhost=\"/\"} 1.5\n">>)).
+
+csv_guards_formulas_and_quotes_test() ->
+    Row = #{name => <<"=cmd()">>, defined => true, tags => [<<"a,b">>], has_password => true,
+            state => never_used, connected => 0, sessions => 0, first_seen => null, last_seen => null,
+            failed => 0, refused => 0, methods => #{}, method_sources => #{}, sources => []},
+    Csv = iolist_to_binary(rabbit_access_insight_report:csv([Row])),
+    ?assertNotEqual(nomatch, binary:match(Csv, <<"'=cmd()">>)),
+    ?assertNotEqual(nomatch, binary:match(Csv, <<"\"a,b\"">>)).
+
+json_clean_test() ->
+    J = rabbit_json:decode(iolist_to_binary(rabbit_access_insight_api:json(
+          #{a => undefined, b => {1, 2}, c => "text", d => [<<"x">>], e => []}))),
+    ?assertEqual(#{<<"a">> => null, <<"b">> => [1, 2], <<"c">> => <<"text">>,
+                   <<"d">> => [<<"x">>], <<"e">> => []}, J).
+
+%%----------------------------------------------------------------------------
 %% journal
 
 journal_test_() ->

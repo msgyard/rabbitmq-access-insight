@@ -205,11 +205,11 @@ on_event(user_authentication_success, Props, Ts, S = #{pending := P}) ->
             S   %% direct (in-broker) logins carry no connection name
     end;
 
-on_event(user_authentication_failure, Props, _Ts, S) ->
+on_event(user_authentication_failure, Props, Ts, S) ->
     L = login_props(Props),
     ctr({auth, maps:get(user, L), <<"unknown">>, failed, credentials}),
     emit(login_failed, L#{stage => credentials,
-                          reason => reason(prop(error, Props, <<"invalid credentials">>), S)}, S);
+                          reason => reason(prop(error, Props, <<"invalid credentials">>), S)}, Ts, S);
 
 on_event(access_auth_verified, Props, Ts, S = #{verified := V}) ->
     case prop(pid, Props) of
@@ -239,7 +239,7 @@ on_event(connection_closed, Props, Ts, S = #{pending := P, verified := V}) ->
                     emit(login_failed,
                          L#{stage => access,
                             reason => <<"refused after authentication (authorization or virtual host access)">>},
-                         S1#{pending => P1});
+                         Ts, S1#{pending => P1});
                 error ->
                     S1
             end
@@ -328,7 +328,7 @@ open_session(Pid, Props, Ts, Bootstrap, S = #{pending := P, verified := V, vm :=
     ets:insert(?T_SESSION, {Pid, Sess#{vm => Vm}}),
     ctr({opened, maps:get(vhost, Sess), User, Method, maps:get(protocol, Sess)}),
     ctr({auth, User, Method, success, none}),
-    emit(session_open, Sess#{vm => Vm}, S#{pending => P1, verified => V1}).
+    emit(session_open, Sess#{vm => Vm}, Ts, S#{pending => P1, verified => V1}).
 
 close_session(Sess, Ts, Why, S) ->
     #{opened_at := Opened, vhost := VHost, user := User} = Sess,
@@ -337,7 +337,7 @@ close_session(Sess, Ts, Why, S) ->
     Rec = maps:with([pid, user, vhost, protocol, peer, client, method, method_source,
                      opened_at, conn_name], Sess),
     emit(session_close, Rec#{duration_ms => End - Opened, reason => Why,
-                             estimated => Why =/= closed}, S#{last_ts => max(End, maps:get(last_ts, S))}).
+                             estimated => Why =/= closed}, End, S#{last_ts => max(End, maps:get(last_ts, S))}).
 
 %% Sessions recorded before a restart whose connection is gone are closed at
 %% the last moment the node is known to have been up.
@@ -390,9 +390,12 @@ tracked_props(_) ->
 %%----------------------------------------------------------------------------
 %% Records
 
-emit(Type, Map, S = #{seq := Seq0, origin := Origin, buffer := Buf, limits := Limits}) ->
+emit(Type, Map, S) ->
+    emit(Type, Map, now_ms(), S).
+
+%% Ts is when it happened: the event's own timestamp where there is one.
+emit(Type, Map, Ts, S = #{seq := Seq0, origin := Origin, buffer := Buf, limits := Limits}) ->
     Seq = Seq0 + 1,
-    Ts = now_ms(),
     Rec = ?REC(Seq, Ts, Type, Map),
     ok = rabbit_access_insight_model:apply(Origin, Rec, Limits),
     ok = rabbit_access_insight_model:remember(Rec),
@@ -414,7 +417,8 @@ flush(S = #{buffer := Buf}) ->
 %% Once a second: expire unmatched logins, account for events the handler had
 %% to drop, and follow the disk alarm.
 
-tick(S0) ->
+tick(S00) ->
+    S0 = S00#{limits => limits()},
     Now = now_ms(),
     TTL = rabbit_access_insight_config:get(pending_ttl),
     S1 = expire(Now - TTL, S0),

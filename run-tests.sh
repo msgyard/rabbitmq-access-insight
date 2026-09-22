@@ -18,5 +18,8 @@ echo ">> OTP $(erl -noshell -eval 'io:format("~s",[erlang:system_info(otp_releas
 erlc -I "${INCROOT}" -pa "${RCDIR}/ebin" -o "${OUT}" +debug_info src/*.erl
 erlc -I "${INCROOT}" -I src -pa "${RCDIR}/ebin" -pa "${OUT}" -o "${OUT}" test/*.erl
 MODS=$(cd test && ls *_tests.erl | sed 's/\.erl$//' | paste -sd, -)
-erl -noshell -pa "${OUT}" -pa "${RCDIR}/ebin" \
+# rabbit_json delegates to thoas, which ships alongside rabbit_common
+EXTRA_PA=""
+for d in "$(dirname "${RCDIR}")"/thoas-*/ebin; do [ -d "$d" ] && EXTRA_PA="${EXTRA_PA} -pa $d"; done
+erl -noshell -pa "${OUT}" -pa "${RCDIR}/ebin" ${EXTRA_PA} \
     -eval "case eunit:test([${MODS}], [verbose]) of ok -> halt(0); _ -> halt(1) end."
