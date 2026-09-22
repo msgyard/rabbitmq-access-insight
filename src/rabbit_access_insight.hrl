@@ -22,9 +22,11 @@
 -define(T_SESSION, rai_session).  %% {Pid, Map}: open sessions on this node
 -define(T_CTR,     rai_ctr).      %% {Key, Value}: monotonic metric counters
 -define(T_STATE,   rai_state).    %% {Key, Value}: counters shared with the handler
+-define(T_RECENT,  rai_recent).   %% {Seq, Record}: last closed sessions and failures
 
 -define(AGG_TABLES, [?T_USER, ?T_DAILY, ?T_FAIL, ?T_ORIGIN, ?T_TOMB]).
--define(LOCAL_TABLES, [?T_SESSION, ?T_CTR, ?T_STATE]).
+-define(LOCAL_TABLES, [?T_SESSION, ?T_CTR, ?T_STATE, ?T_RECENT]).
+-define(RECENT_MAX, 5000).
 
 %% Journal record: {Seq, TimestampMs, Type, Map}
 -define(REC(Seq, Ts, Type, Map), {Seq, Ts, Type, Map}).

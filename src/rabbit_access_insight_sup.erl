@@ -19,4 +19,13 @@ init([]) ->
                   restart  => permanent,
                   shutdown => 60000,
                   type     => worker},
-    {ok, {#{strategy => one_for_one, intensity => 10, period => 60}, [Collector]}}.
+    Sync = #{id       => rabbit_access_insight_sync,
+             start    => {rabbit_access_insight_sync, start_link, []},
+             restart  => permanent,
+             shutdown => 5000,
+             type     => worker},
+    Worker = fun(M) -> #{id => M, start => {M, start_link, []}, restart => permanent,
+                         shutdown => 5000, type => worker} end,
+    %% rest_for_one: the processes after the collector use the tables it owns.
+    {ok, {#{strategy => rest_for_one, intensity => 10, period => 60},
+          [Collector, Sync, Worker(rabbit_access_insight_metrics), Worker(rabbit_access_insight_http)]}}.

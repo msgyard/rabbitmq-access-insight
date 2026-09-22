@@ -15,10 +15,11 @@ APP=rabbitmq_access_insight
 VSN=$(sed -n 's/.*{vsn, *"\([^"]*\)".*/\1/p' src/${APP}.app.src)
 OTP=$(erl -noshell -eval 'io:format("~s",[erlang:system_info(otp_release)]),halt().')
 RCDIR=$(scripts/rabbit-common.sh "$@")
-# rabbit's own modules (rabbit_nodes, ...) are called at runtime; put them on
-# the code path so the compiler can see them.
+# The broker's and other plugins' modules (rabbit, prometheus, the management
+# extension behaviour, ...) are only called at runtime; put them on the code
+# path so the compiler can check the behaviours.
 RABBIT_PA=""
-for d in "$(dirname "${RCDIR}")"/rabbit-[0-9]*/ebin; do [ -d "$d" ] && RABBIT_PA="-pa $d"; done
+for d in "$(dirname "${RCDIR}")"/*/ebin; do [ -d "$d" ] && RABBIT_PA="${RABBIT_PA} -pa $d"; done
 
 INCROOT="_build/incroot"; rm -rf "${INCROOT}"; mkdir -p "${INCROOT}"
 ln -s "$(cd "${RCDIR}" && pwd)" "${INCROOT}/rabbit_common"

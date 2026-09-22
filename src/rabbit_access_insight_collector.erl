@@ -31,7 +31,8 @@
 -include_lib("rabbit_common/include/logging.hrl").
 -include_lib("kernel/include/logger.hrl").
 
--export([start_link/0, origin/0, seq/0, sync/0, snapshot_now/0, counts/0, local_status/0]).
+-export([start_link/0, origin/0, seq/0, sync/0, snapshot_now/0, counts/0, local_status/0,
+         reclaimed/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -import(rabbit_access_insight_util, [prop/2, prop/3, bin/1, bin/2, ip/1, now_ms/0]).
@@ -53,6 +54,9 @@ seq() -> gen_server:call(?MODULE, seq).
 sync() -> gen_server:call(?MODULE, sync, 30000).
 snapshot_now() -> gen_server:call(?MODULE, snapshot_now, 60000).
 local_status() -> gen_server:call(?MODULE, status, 10000).
+
+%% Rows of this node's own origin recovered from a peer after an unclean stop.
+reclaimed(Origin, Entries) -> gen_server:cast(?MODULE, {reclaimed, Origin, Entries}).
 
 %% Events seen on this node since the collector started, by event type.
 counts() ->
@@ -92,6 +96,8 @@ init([]) ->
     S3 = bootstrap(close_stale(StoppedAt, S2)),
     _ = rabbit_access_insight_model:prune_daily(Now, rabbit_access_insight_config:get(history_rollup_days)),
     S4 = flush(S3),
+    Clean =:= unclean andalso not NewEpoch andalso
+        erlang:send_after(15000, self(), reclaim),
     erlang:send_after(?FLUSH_MS, self(), flush),
     erlang:send_after(?TICK_MS, self(), tick),
     erlang:send_after(rabbit_access_insight_config:get(snapshot_interval), self(), snapshot),
@@ -127,6 +133,10 @@ handle_call(status, _From, S) ->
 handle_call(_Request, _From, State) ->
     {reply, {error, unknown_request}, State}.
 
+handle_cast({reclaimed, Origin, Entries}, S = #{origin := Origin}) ->
+    %% Applied here, in the only writer of this origin, and only where newer.
+    ok = rabbit_access_insight_sync:store_rows(Origin, Entries, reclaim),
+    {noreply, S};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -158,6 +168,9 @@ handle_info({gen_event_EXIT, ?HANDLER, Reason}, S) ->
     ?LOG_WARNING("rabbitmq_access_insight: event handler exited (~tp); re-attaching",
                  [Reason], ?LOG_META),
     erlang:send_after(1000, self(), attach),
+    {noreply, S};
+handle_info(reclaim, S = #{origin := Origin}) ->
+    catch rabbit_access_insight_sync:reclaim(Origin),
     {noreply, S};
 handle_info(attach, S) ->
     ok = attach(),
@@ -194,6 +207,7 @@ on_event(user_authentication_success, Props, Ts, S = #{pending := P}) ->
 
 on_event(user_authentication_failure, Props, _Ts, S) ->
     L = login_props(Props),
+    ctr({auth, maps:get(user, L), <<"unknown">>, failed, credentials}),
     emit(login_failed, L#{stage => credentials,
                           reason => reason(prop(error, Props, <<"invalid credentials">>), S)}, S);
 
@@ -221,6 +235,7 @@ on_event(connection_closed, Props, Ts, S = #{pending := P, verified := V}) ->
         [] ->
             case maps:take(Name, P) of
                 {{_, L}, P1} ->
+                    ctr({auth, maps:get(user, L), <<"unknown">>, failed, access}),
                     emit(login_failed,
                          L#{stage => access,
                             reason => <<"refused after authentication (authorization or virtual host access)">>},
@@ -380,6 +395,7 @@ emit(Type, Map, S = #{seq := Seq0, origin := Origin, buffer := Buf, limits := Li
     Ts = now_ms(),
     Rec = ?REC(Seq, Ts, Type, Map),
     ok = rabbit_access_insight_model:apply(Origin, Rec, Limits),
+    ok = rabbit_access_insight_model:remember(Rec),
     S1 = S#{seq => Seq, last_ts => max(Ts, maps:get(last_ts, S))},
     case S1 of
         #{disk_paused := true, skipped := N} -> S1#{skipped => N + 1};
@@ -404,6 +420,7 @@ tick(S0) ->
     S1 = expire(Now - TTL, S0),
     S2 = case ets:take(?T_STATE, dropped) of
              [{dropped, N, From}] when N > 0 ->
+                 _ = ets:update_counter(?T_STATE, dropped_total, N, {dropped_total, 0}),
                  ?LOG_WARNING("rabbitmq_access_insight: dropped ~b events under load", [N], ?LOG_META),
                  emit(gap, #{kind => overload, count => N, from => From, to => Now}, S1);
              _ -> S1
@@ -439,7 +456,7 @@ disk_alarm_active() ->
 snapshot_term(#{origin := {_, Epoch}, seq := Seq, vm := Vm}) ->
     #{epoch => Epoch, seq => Seq, ts => now_ms(), vm => Vm,
       tables => maps:from_list([{T, ets:tab2list(T)}
-                                || T <- ?AGG_TABLES ++ [?T_SESSION, ?T_CTR]])}.
+                                || T <- ?AGG_TABLES ++ [?T_SESSION, ?T_CTR, ?T_RECENT]])}.
 
 write_snapshot(S = #{dir := Dir}) ->
     rabbit_access_insight_store:save_snapshot(Dir, snapshot_term(S)).
@@ -465,6 +482,7 @@ replay(Since, Origin, Limits, {MaxSeq, MaxTs, N}) ->
         Recs ->
             lists:foreach(fun(R) ->
                               rabbit_access_insight_model:apply(Origin, R, Limits),
+                              rabbit_access_insight_model:remember(R),
                               replay_session(R)
                           end, Recs),
             ?REC(LastSeq, LastTs, _, _) = lists:last(Recs),

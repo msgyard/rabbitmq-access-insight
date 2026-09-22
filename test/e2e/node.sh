@@ -34,7 +34,7 @@ case $CMD in
       echo 'management.tcp.port = 15701'; echo 'prometheus.tcp.port = 15791'
       echo 'access_insight.http.listener.port = 15793'
       for l in "$@"; do echo "$l"; done; } > "$D"/rabbitmq.conf
-    echo '[rabbitmq_access_insight,rabbitmq_mqtt,rabbitmq_stomp].' > "$D"/enabled_plugins
+    echo "[${PLUGINS:-rabbitmq_access_insight,rabbitmq_mqtt,rabbitmq_stomp}]." > "$D"/enabled_plugins
     env_for; nohup rabbitmq-server > "$D"/out.log 2>&1 & wait_up ;;
   stop) env_for; rabbitmqctl -q stop >/dev/null 2>&1 || true ;;
   kill) env_for; kill -9 "$(cat "$D"/pid)"; sleep 2 ;;

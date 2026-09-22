@@ -8,13 +8,16 @@
 %% Small, pure helpers shared by the other modules.
 -module(rabbit_access_insight_util).
 
--export([now_ms/0, day/1, day_start/1, days_between/2,
+-export([bin_to_list/1, now_ms/0, day/1, day_start/1, days_between/2,
          ip/1, bin/1, bin/2, pid_bin/1, protocol/1,
          client_name/1, conn_peer/1, vm_id/0, prop/2, prop/3]).
 
 -define(MS_PER_DAY, 86400000).
 
 now_ms() -> erlang:system_time(millisecond).
+
+bin_to_list(B) when is_binary(B) -> binary_to_list(B);
+bin_to_list(L) when is_list(L) -> L.
 
 %% UTC calendar day of a millisecond timestamp, as <<"YYYY-MM-DD">>.
 -spec day(integer()) -> binary().

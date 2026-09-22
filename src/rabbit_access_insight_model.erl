@@ -17,14 +17,15 @@
 
 -include("rabbit_access_insight.hrl").
 
--export([create_tables/0, apply/3, new_origin/2, origin_version/1,
+-export([create_tables/0, apply/3, remember/1, new_origin/2, origin_version/1,
          merge_user/2, merge_counts/2, prune_daily/2]).
 
 -import(rabbit_access_insight_util, [day/1, days_between/2]).
 
 create_tables() ->
     [ets:new(T, [named_table, public, set, {read_concurrency, true}])
-     || T <- ?AGG_TABLES ++ ?LOCAL_TABLES],
+     || T <- ?AGG_TABLES ++ ?LOCAL_TABLES, T =/= ?T_RECENT],
+    ets:new(?T_RECENT, [named_table, public, ordered_set, {read_concurrency, true}]),
     ok.
 
 new_origin(Origin, Now) ->
@@ -53,6 +54,8 @@ apply(Origin, ?REC(Seq, Ts, session_open, M), Limits) ->
            first_seen => min_ts(maps:get(first_seen, U, undefined), Ts),
            last_seen  => max(maps:get(last_seen, U, 0), Ts),
            methods    => inc(maps:get(methods, U, #{}), Method, Limits),
+           method_sources => inc(maps:get(method_sources, U, #{}),
+                                 maps:get(method_source, M, <<"none">>), Limits),
            sources    => inc(maps:get(sources, U, #{}), maps:get(peer, M, <<"unknown">>), Limits),
            clients    => inc(maps:get(clients, U, #{}), maps:get(client, M, <<"unknown">>), Limits),
            vhosts     => inc(maps:get(vhosts, U, #{}), VHost, Limits),
@@ -103,6 +106,17 @@ apply(Origin, ?REC(Seq, Ts, gap, M), _Limits) ->
 
 apply(Origin, ?REC(Seq, Ts, _Other, _M), _Limits) ->
     touch(Origin, Seq, Ts).
+
+%% Keep the last closed sessions and failed logins of this node in memory,
+%% for recent-activity views that should not scan the journal.
+remember(R = ?REC(Seq, _, Type, _)) when Type =:= session_close; Type =:= login_failed ->
+    ets:insert(?T_RECENT, {Seq, R}),
+    case ets:info(?T_RECENT, size) > ?RECENT_MAX of
+        true  -> ets:delete(?T_RECENT, ets:first(?T_RECENT));
+        false -> true
+    end,
+    ok;
+remember(_) -> ok.
 
 %%----------------------------------------------------------------------------
 
