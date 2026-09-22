@@ -35,7 +35,9 @@ case $CMD in
     { echo "listeners.tcp.default = $((5701 + I))"; echo 'loopback_users = none'
       echo "mqtt.listeners.tcp.default = $((1901 + I))"; echo "stomp.listeners.tcp.1 = $((61701 + I))"
       echo "management.tcp.port = $((15701 + I))"; echo "prometheus.tcp.port = $((15791 + I))"
-      echo "access_insight.http.listener.port = $((15801 + I))"
+      # RabbitMQ 3.x refuses settings of plugins that are not enabled at boot
+      case "${PLUGINS:-rabbitmq_access_insight}" in *rabbitmq_access_insight*)
+        echo "access_insight.http.listener.port = $((15801 + I))" ;; esac
       for l in "$@"; do echo "$l"; done; } > "$D"/rabbitmq.conf
     echo "[${PLUGINS:-rabbitmq_access_insight,rabbitmq_mqtt,rabbitmq_stomp}]." > "$D"/enabled_plugins
     [ -n "${ERLANG_COOKIE:-}" ] && export RABBITMQ_ERLANG_COOKIE="$ERLANG_COOKIE"

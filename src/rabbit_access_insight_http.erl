@@ -36,17 +36,26 @@ listener_info() ->
 init([]) ->
     process_flag(trap_exit, true),
     case rabbit_access_insight_config:get(http_enabled) of
-        true ->
-            {ok, IP} = inet:parse_address(rabbit_access_insight_util:bin_to_list(
-                                            rabbit_access_insight_config:get(http_ip))),
-            Port = rabbit_access_insight_config:get(http_port),
-            Dispatch = cowboy_router:compile([{'_', [{"/[...]", ?MODULE, []}]}]),
-            {ok, _} = rabbit_web_dispatch:register_context_handler(
-                        ?CONTEXT, [{port, Port}, {ip, IP}], "", Dispatch, "Access Insight"),
-            logger:info("rabbitmq_access_insight: HTTP listener on ~ts:~b", [inet:ntoa(IP), Port]),
-            {ok, #{registered => true}};
-        _ ->
-            {ok, #{registered => false}}
+        true -> {ok, #{registered => register_listener()}};
+        _    -> {ok, #{registered => false}}
+    end.
+
+%% A listener that cannot start (port in use, bad address) is logged and
+%% left out; it must never keep the plugin, let alone the node, from starting.
+register_listener() ->
+    IPStr = rabbit_access_insight_util:bin_to_list(rabbit_access_insight_config:get(http_ip)),
+    Port = rabbit_access_insight_config:get(http_port),
+    try
+        {ok, IP} = inet:parse_address(IPStr),
+        Dispatch = cowboy_router:compile([{'_', [{"/[...]", ?MODULE, []}]}]),
+        {ok, _} = rabbit_web_dispatch:register_context_handler(
+                    ?CONTEXT, [{port, Port}, {ip, IP}], "", Dispatch, "Access Insight"),
+        logger:info("rabbitmq_access_insight: HTTP listener on ~ts:~b", [IPStr, Port]),
+        true
+    catch C:E ->
+        logger:warning("rabbitmq_access_insight: HTTP listener on ~ts:~b not started (~tp:~tp); "
+                       "the API remains available through the management plugin", [IPStr, Port, C, E]),
+        false
     end.
 
 handle_call(_, _, S) -> {reply, ok, S}.

@@ -51,3 +51,29 @@ jobs:
       - name: Package .ez
         run: ./build-ez.sh --rmq-release 3.12.14
       - run: ls -la _build/*.ez
+
+  # End to end on real brokers: a single node (all four protocols, enabling
+  # on a running node, restart and kill -9) and a three-node cluster
+  # (replication checks). Oldest and newest supported lines.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rmq: '3.12.14', otp: '26' }
+          - { rmq: '4.3.6',   otp: '27' }
+    name: e2e RabbitMQ ${{ matrix.rmq }} on OTP ${{ matrix.otp }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { otp-version: '${{ matrix.otp }}', rebar3-version: '3' }
+      - run: python3 -m pip install --quiet pika
+      - name: Build
+        run: ./build-ez.sh --rmq-release ${{ matrix.rmq }}
+      - name: Single node
+        run: test/e2e/node_e2e.sh "$RUNNER_TEMP/node" "$PWD"/_build/rmq-${{ matrix.rmq }}/rabbitmq_server-${{ matrix.rmq }} "$(ls _build/*.ez)" python3
+      - name: Three-node cluster
+        run: test/e2e/cluster_e2e.sh "$RUNNER_TEMP/cluster" "$PWD"/_build/rmq-${{ matrix.rmq }}/rabbitmq_server-${{ matrix.rmq }} "$(ls _build/*.ez)" python3
+      - if: failure()
+        run: tail -n 80 "$RUNNER_TEMP"/*/log/*.log "$RUNNER_TEMP"/*/*/log/*.log 2>/dev/null || true

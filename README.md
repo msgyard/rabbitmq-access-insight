@@ -72,8 +72,10 @@ session.
 | credentials accepted, then refused (unknown user, no access to the virtual host) | **refused**, stage *access* |
 | connection opened | **session** |
 
-This holds for AMQP 0-9-1, AMQP 1.0, MQTT and STOMP, and for direct
-connections inside the broker (shovels, federation).
+This holds for AMQP 0-9-1, MQTT and STOMP, for AMQP 1.0 on RabbitMQ 4.x, and
+for direct connections inside the broker (shovels, federation). On RabbitMQ
+3.x, AMQP 1.0 is served by the `rabbitmq_amqp1_0` plugin, which publishes no
+login or connection events, so those logins cannot be recorded there.
 
 ### Authentication method: confirmed or inferred
 
@@ -121,7 +123,9 @@ the plugin fell behind — it drops rather than slow the broker down.
 
 ## Configuration
 
-All settings are optional (`rabbitmq.conf`):
+All settings are optional (`rabbitmq.conf`). On RabbitMQ 3.x, as for any
+plugin, a node refuses to boot with `access_insight.*` settings while the
+plugin is not enabled on it: enable the plugin first.
 
 | setting | default | |
 |---|---|---|
@@ -211,7 +215,24 @@ confirmed.
 
 ## Performance
 
-<!-- PERFORMANCE -->
+The plugin works when connections open and close, in its own processes, and
+never blocks connection setup or messages. Measured with `test/perf/bench.py`
+on a laptop (Apple M3), the plugin disabled and enabled in turn on the same
+node, 3 rounds of 6,000 connections each (open, channel, close) from six
+clients, CPU time of the broker process minus its idle rate:
+
+| | RabbitMQ 3.12.14 / OTP 26 | RabbitMQ 4.3.6 / OTP 27 |
+|---|---|---|
+| broker CPU per connection, plugin off | 0.980 ms | 0.980 ms |
+| broker CPU per connection, plugin on | 1.047 ms | 1.036 ms |
+| **overhead under a constant connection storm** | **+6.8%** | **+5.8%** |
+| publish throughput, off / on (msg/s) | 50,816 / 50,597 | 56,367 / 56,517 |
+| records written while publishing 50,000 messages | 0 | 0 |
+
+Workloads with long-lived connections see a small fraction of this. Memory
+is bounded: after 100,000 sessions and 20,000 distinct failing user names the
+plugin's tables held 19–25 MB, the recent-activity buffer 5,000 entries, and
+the user rows were capped at `limits.max_users`.
 
 ## Build and test
 

@@ -10,6 +10,6 @@
   {vsn, "0.1.0-dev"},
   {modules, []},
   {registered, [rabbit_access_insight_sup, rabbit_access_insight_collector]},
-  {applications, [kernel, stdlib, rabbit_common, rabbit]},
+  {applications, [kernel, stdlib, rabbit_common, rabbit, rabbitmq_web_dispatch]},
   {mod, {rabbit_access_insight_app, []}},
   {env, []}]}.

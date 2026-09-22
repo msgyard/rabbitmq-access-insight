@@ -21,7 +21,9 @@ N()   { "$HERE/node.sh" "$@"; }
 ctl() { N ctl "$D" "$@"; }
 ok()  { if [ "$2" = "$3" ]; then echo "  ✅ $1"; else echo "  ❌ $1 (got: $2, want: $3)"; FAIL=1; fi; }
 V=$(basename "$HOMER" | sed 's/rabbitmq_server-//')
-case $V in 3.*) AMQP10=rabbitmq_amqp1_0, ;; *) AMQP10= ;; esac
+# RabbitMQ 3.x serves AMQP 1.0 through a plugin that publishes no login or
+# connection events, so those logins cannot be seen there; 4.x is native.
+case $V in 3.*) AMQP10=rabbitmq_amqp1_0, ; A10N=0 ;; *) AMQP10= ; A10N=1 ;; esac
 export PLUGINS="${AMQP10}rabbitmq_mqtt,rabbitmq_stomp,rabbitmq_management"
 N start "$D" "$HOMER" "$EZ"
 ctl add_user alice pw >/dev/null; ctl set_permissions alice '.*' '.*' '.*' >/dev/null
@@ -55,13 +57,14 @@ A10='application:ensure_all_started(amqp10_client),
         after 5000 -> timeout end,
     catch amqp10_client:close_connection(C), R end,
   io:format("~p ~p~n", [Try(<<"alice">>, <<"pw">>), Try(<<"alice">>, <<"nope">>)]), halt().'
-ok "AMQP 1.0: one login accepted, one refused" "$(erl -noshell $PA -eval "$A10" 2>/dev/null | tail -1)" "ok refused"
+ok "AMQP 1.0: one login accepted, one refused" "$(erl -noshell $PA -eval "$A10" 2>/dev/null | grep -E '^(ok|refused|timeout) ' | tail -1)" "ok refused"
 sleep 2
 U=$(api users/alice)
-ok "alice: 1 + 3 AMQP 0-9-1 + 1 AMQP 1.0 + 1 MQTT + 1 STOMP sessions" "$(echo "$U" | jq "d['user']['sessions']")" 7
-ok "alice: failed 2 AMQP 0-9-1 + 1 AMQP 1.0 + 1 MQTT + 1 STOMP" "$(echo "$U" | jq "d['user']['failed']")" 5
+ok "alice: 1 + 3 AMQP 0-9-1 + $A10N AMQP 1.0 + 1 MQTT + 1 STOMP sessions" "$(echo "$U" | jq "d['user']['sessions']")" $((6 + A10N))
+ok "alice: failed 2 AMQP 0-9-1 + $A10N AMQP 1.0 + 1 MQTT + 1 STOMP" "$(echo "$U" | jq "d['user']['failed']")" $((4 + A10N))
+if [ $A10N = 1 ]; then P10="('AMQP 1.0', 1), "; else P10=""; fi
 ok "alice: protocols" "$(echo "$U" | jq "sorted(d['user']['protocols'].items())")" \
-   "[('AMQP 0-9-1', 4), ('AMQP 1.0', 1), ('MQTT 3.1.1', 1), ('STOMP 1.2', 1)]"
+   "[('AMQP 0-9-1', 4), ${P10}('MQTT 3.1.1', 1), ('STOMP 1.2', 1)]"
 ok "ghost: failed only" "$(api users/ghost | jq "(d['user']['failed'], d['user']['sessions'], d['user']['state'])")" "(1, 0, 'attempts_only')"
 ok "bob: refused after authentication" "$(api users/bob | jq "(d['user']['refused'], d['user']['sessions'])")" "(1, 0)"
 BEFORE=$(api users | jq "sorted((u['name'], u['sessions'], u['failed'], u['refused']) for u in d['items'])")
@@ -77,5 +80,24 @@ echo "== kill -9"
 N kill "$D"; N restart "$D"
 ok "users unchanged" "$(api users | jq "sorted((u['name'], u['sessions'], u['failed'], u['refused']) for u in d['items'])")" "$BEFORE"
 ok "unclean stop marked" "$(api nodes | jq "[g['kind'] for o in d['origins'] for g in o['gaps']]")" "['unclean_shutdown']"
+
+echo "== the plugin alone, without the management or Prometheus plugins"
+N stop "$D"
+echo '[rabbitmq_access_insight].' > "$D/enabled_plugins"
+N restart "$D"
+ok "node boots; the plugin's endpoint serves the API" \
+   "$(curl -s -o /dev/null -w '%{http_code}' -u mon:pw http://127.0.0.1:15693/api/access/v1/users)" 200
+ok "... and its metrics" "$(curl -s http://127.0.0.1:15693/metrics | grep -c '^# TYPE rabbitmq_access_')" 8
+
+echo "== the plugin's port is already taken"
+N stop "$D"
+"$PY" -c "import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0); s.bind(('127.0.0.1', 15699)); s.listen(); time.sleep(90)" &
+BUSY=$!; sleep 1
+echo 'access_insight.http.listener.port = 15699' >> "$D/rabbitmq.conf"
+N restart "$D"
+ok "node boots anyway, collecting" "$(ctl eval 'is_pid(whereis(rabbit_access_insight_collector)).' | tail -1)" true
+ctl eval 'logger_std_h:filesync(rmq_1_file_1).' >/dev/null 2>&1
+ok "... and says why in the log" "$(cat "$D"/log/*.log | grep -c 'HTTP listener on 127.0.0.1:15699 not started')" 1
+kill $BUSY 2>/dev/null
 N stop "$D"
 exit $FAIL
