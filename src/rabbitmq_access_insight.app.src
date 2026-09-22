@@ -7,7 +7,7 @@
 %%
 {application, rabbitmq_access_insight,
  [{description, "Access analytics for RabbitMQ: who connects, from where, and how they authenticate"},
-  {vsn, "0.1.0-dev"},
+  {vsn, "0.1.0"},
   {modules, []},
   {registered, [rabbit_access_insight_sup, rabbit_access_insight_collector]},
   {applications, [kernel, stdlib, rabbit_common, rabbit, rabbitmq_web_dispatch]},
