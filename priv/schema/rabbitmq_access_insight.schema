@@ -1,0 +1,87 @@
+%% This Source Code Form is subject to the terms of the Mozilla Public
+%% License, v. 2.0. If a copy of the MPL was not distributed with this
+%% file, You can obtain one at https://mozilla.org/MPL/2.0/.
+%%
+%% Copyright (c) 2026 martinx
+%% SPDX-License-Identifier: MPL-2.0
+%%
+%% rabbitmq.conf settings of rabbitmq_access_insight. All are optional.
+%%
+%%   access_insight.history.dir               = /var/lib/rabbitmq/access_insight
+%%   access_insight.history.max_disk          = 512MB
+%%   access_insight.history.log_days          = 30
+%%   access_insight.history.rollup_days       = 400
+%%   access_insight.history.sync_interval     = 1000
+%%   access_insight.history.snapshot_interval = 300000
+%%   access_insight.replication.enabled       = true
+%%   access_insight.replication.interval      = 60000
+%%   access_insight.metrics.export            = auto
+%%   access_insight.metrics.per_user          = true
+%%   access_insight.http.enabled              = true
+%%   access_insight.http.listener.ip          = 127.0.0.1
+%%   access_insight.http.listener.port        = 15693
+%%   access_insight.limits.max_queue          = 50000
+%%   access_insight.limits.max_users          = 100000
+%%   access_insight.limits.max_set            = 64
+
+%% Where the journal and snapshots live. Default: <node data dir>/access_insight
+{mapping, "access_insight.history.dir", "rabbitmq_access_insight.history_dir",
+ [{datatype, string}]}.
+
+%% Disk budget of the journal; the oldest segments are removed beyond it.
+{mapping, "access_insight.history.max_disk", "rabbitmq_access_insight.history_max_disk",
+ [{datatype, bytesize}]}.
+
+%% Days of session and login detail kept in the journal.
+{mapping, "access_insight.history.log_days", "rabbitmq_access_insight.history_log_days",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+%% Days of per-account daily totals kept.
+{mapping, "access_insight.history.rollup_days", "rabbitmq_access_insight.history_rollup_days",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+%% Milliseconds between journal fsyncs: the most a hard crash can lose.
+{mapping, "access_insight.history.sync_interval", "rabbitmq_access_insight.history_sync_interval",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+{mapping, "access_insight.history.snapshot_interval", "rabbitmq_access_insight.snapshot_interval",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+%% Replicate account profiles and daily totals to the other cluster nodes.
+{mapping, "access_insight.replication.enabled", "rabbitmq_access_insight.replication_enabled",
+ [{datatype, {enum, [true, false]}}]}.
+
+{mapping, "access_insight.replication.interval", "rabbitmq_access_insight.replication_interval",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+%% auto: merge into rabbitmq_prometheus when it is enabled, else serve on the
+%% plugin's own endpoint.
+{mapping, "access_insight.metrics.export", "rabbitmq_access_insight.metrics_export",
+ [{datatype, {enum, [auto, prometheus, standalone, both, off]}}]}.
+
+%% Label access metrics by user. Turn off for very many accounts.
+{mapping, "access_insight.metrics.per_user", "rabbitmq_access_insight.metrics_per_user",
+ [{datatype, {enum, [true, false]}}]}.
+
+%% The plugin's own HTTP endpoint (API, metrics, status page), independent of
+%% the management plugin.
+{mapping, "access_insight.http.enabled", "rabbitmq_access_insight.http_enabled",
+ [{datatype, {enum, [true, false]}}]}.
+
+{mapping, "access_insight.http.listener.ip", "rabbitmq_access_insight.http_ip",
+ [{datatype, string}]}.
+
+{mapping, "access_insight.http.listener.port", "rabbitmq_access_insight.http_port",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+{mapping, "access_insight.limits.max_queue", "rabbitmq_access_insight.max_queue",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+{mapping, "access_insight.limits.max_users", "rabbitmq_access_insight.max_users",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+{mapping, "access_insight.limits.max_set", "rabbitmq_access_insight.max_set",
+ [{datatype, integer}, {validators, ["access_insight_positive"]}]}.
+
+{validator, "access_insight_positive", "must be greater than 0",
+ fun(Int) when is_integer(Int) -> Int > 0; (_) -> false end}.

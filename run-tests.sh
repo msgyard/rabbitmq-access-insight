@@ -16,7 +16,7 @@ ln -s "$(cd "${RCDIR}" && pwd)" "${INCROOT}/rabbit_common"
 OUT=_build/test; rm -rf "${OUT}"; mkdir -p "${OUT}"
 echo ">> OTP $(erl -noshell -eval 'io:format("~s",[erlang:system_info(otp_release)]),halt().'); rabbit_common: ${RCDIR}"
 erlc -I "${INCROOT}" -pa "${RCDIR}/ebin" -o "${OUT}" +debug_info src/*.erl
-erlc -I "${INCROOT}" -pa "${RCDIR}/ebin" -pa "${OUT}" -o "${OUT}" test/*.erl
+erlc -I "${INCROOT}" -I src -pa "${RCDIR}/ebin" -pa "${OUT}" -o "${OUT}" test/*.erl
 MODS=$(cd test && ls *_tests.erl | sed 's/\.erl$//' | paste -sd, -)
 erl -noshell -pa "${OUT}" -pa "${RCDIR}/ebin" \
     -eval "case eunit:test([${MODS}], [verbose]) of ok -> halt(0); _ -> halt(1) end."
