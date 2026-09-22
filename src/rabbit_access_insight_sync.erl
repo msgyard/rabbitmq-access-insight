@@ -48,7 +48,9 @@ start_link() ->
 %% seconds ago. Used before answering a query.
 -spec sync_now(timeout()) -> ok.
 sync_now(Timeout) ->
-    try gen_server:call(?MODULE, sync_now, Timeout)
+    try rabbit_access_insight_config:get(replication_enabled) =:= true
+            andalso gen_server:call(?MODULE, sync_now, Timeout),
+        ok
     catch exit:{timeout, _} -> ok;
           exit:{noproc, _} -> ok
     end.
@@ -151,7 +153,8 @@ pull(Peer, Own) ->
       fun(O, _) when O =:= Own -> ok;
          (O, RV) ->
               LV = rabbit_access_insight_model:origin_version(O),
-              case RV > LV andalso not ets:member(?T_TOMB, O) of
+              New = not ets:member(?T_ORIGIN, O),
+              case (RV > LV orelse New) andalso not ets:member(?T_TOMB, O) of
                   false -> ok;
                   true ->
                       case erpc:call(Peer, ?MODULE, entries_since, [O, LV], ?RPC_TIMEOUT) of
@@ -167,7 +170,10 @@ store_rows(Origin, #{meta := Meta, user := U, daily := D, fail := F}, _Mode) ->
     [newer(?T_DAILY, Row) || Row <- D],
     [newer(?T_FAIL, Row) || Row <- F],
     case ets:lookup(?T_ORIGIN, Origin) of
-        [{_, #{v := LV}}] when LV >= map_get(v, Meta) -> ok;
+        [{_, #{v := LV}}] when LV > map_get(v, Meta) -> ok;
+        [{_, #{v := LV} = Local}] when LV =:= map_get(v, Meta) ->
+            %% same version: keep the larger gap list / user count seen
+            ets:insert(?T_ORIGIN, {Origin, maps:merge(Meta, maps:with([users], Local))});
         _ -> ets:insert(?T_ORIGIN, {Origin, Meta})
     end,
     ok.

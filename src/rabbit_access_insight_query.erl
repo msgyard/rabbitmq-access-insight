@@ -214,10 +214,14 @@ erpc_call(Node, F, A) ->
     catch C:E -> {error, iolist_to_binary(io_lib:format("~tp:~tp", [C, E]))}
     end.
 
-%% {[{Node, LiveMap}], IncompleteNodes}
+%% {[{Node, LiveMap}], IncompleteNodes}: cluster members that are down or did
+%% not answer are incomplete -- their account data still comes from the
+%% replicas held here, their open sessions and recent activity do not.
 live() ->
-    {Res, Bad} = multicall(members(), local_live, []),
-    {[{N, L} || {N, {ok, L}} <- Res], Bad}.
+    Running = members(),
+    {Res, Bad} = multicall(Running, local_live, []),
+    Down = try rabbit_nodes:list_members() -- Running catch _:_ -> [] end,
+    {[{N, L} || {N, {ok, L}} <- Res], lists:usort(Bad ++ Down)}.
 
 %% Open sessions of all nodes, newest first.
 open_sessions(Live) ->

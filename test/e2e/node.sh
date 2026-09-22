@@ -10,12 +10,15 @@
 #   node.sh start <work dir> <RABBITMQ_HOME> <plugin .ez> [extra rabbitmq.conf lines...]
 #   node.sh stop|kill|restart <work dir>
 #   node.sh ctl <work dir> <rabbitmqctl args...>
-# The Erlang runtime on PATH must match the plugin build. Ports: AMQP 5701,
-# MQTT 1901, STOMP 61701, management 15701, prometheus 15791, plugin API 15793.
+# The Erlang runtime on PATH must match the plugin build. With NODE_INDEX=i
+# (default 0) the node is rai<i>@localhost and listens on AMQP 5701+i,
+# MQTT 1901+i, STOMP 61701+i, management 15701+i, prometheus 15791+i and the
+# plugin endpoint 15801+i.
 set -euo pipefail
 CMD=$1 D=$2; shift 2
+I=${NODE_INDEX:-0}
 env_for() {
-  export RABBITMQ_NODENAME=rai@localhost RABBITMQ_DIST_PORT=25701
+  export RABBITMQ_NODENAME=rai$([ "$I" = 0 ] || echo "$I")@localhost RABBITMQ_DIST_PORT=$((25701 + I))
   export RABBITMQ_MNESIA_BASE=$D/data RABBITMQ_LOG_BASE=$D/log RABBITMQ_PID_FILE=$D/pid
   export RABBITMQ_CONFIG_FILE=$D/rabbitmq.conf RABBITMQ_ENABLED_PLUGINS_FILE=$D/enabled_plugins
   export RABBITMQ_PLUGINS_DIR=$D/plugins
@@ -29,16 +32,18 @@ case $CMD in
     echo "$HOMER" > "$D"/home
     for f in "$HOMER"/plugins/*; do ln -s "$f" "$D"/plugins/; done
     cp "$EZ" "$D"/plugins/
-    { echo 'listeners.tcp.default = 5701'; echo 'loopback_users = none'
-      echo 'mqtt.listeners.tcp.default = 1901'; echo 'stomp.listeners.tcp.1 = 61701'
-      echo 'management.tcp.port = 15701'; echo 'prometheus.tcp.port = 15791'
-      echo 'access_insight.http.listener.port = 15793'
+    { echo "listeners.tcp.default = $((5701 + I))"; echo 'loopback_users = none'
+      echo "mqtt.listeners.tcp.default = $((1901 + I))"; echo "stomp.listeners.tcp.1 = $((61701 + I))"
+      echo "management.tcp.port = $((15701 + I))"; echo "prometheus.tcp.port = $((15791 + I))"
+      echo "access_insight.http.listener.port = $((15801 + I))"
       for l in "$@"; do echo "$l"; done; } > "$D"/rabbitmq.conf
     echo "[${PLUGINS:-rabbitmq_access_insight,rabbitmq_mqtt,rabbitmq_stomp}]." > "$D"/enabled_plugins
+    [ -n "${ERLANG_COOKIE:-}" ] && export RABBITMQ_ERLANG_COOKIE="$ERLANG_COOKIE"
     env_for; nohup rabbitmq-server > "$D"/out.log 2>&1 & wait_up ;;
   stop) env_for; rabbitmqctl -q stop >/dev/null 2>&1 || true ;;
   kill) env_for; kill -9 "$(cat "$D"/pid)"; sleep 2 ;;
-  restart) env_for; nohup rabbitmq-server >> "$D"/out.log 2>&1 & wait_up ;;
+  restart) [ -n "${ERLANG_COOKIE:-}" ] && export RABBITMQ_ERLANG_COOKIE="$ERLANG_COOKIE"
+    env_for; nohup rabbitmq-server >> "$D"/out.log 2>&1 & wait_up ;;
   ctl) env_for; rabbitmqctl -q "$@" ;;
   plugins) env_for; rabbitmq-plugins -q "$@" ;;
 esac
