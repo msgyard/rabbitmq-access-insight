@@ -7,7 +7,7 @@
 <meta name="description" content="A RabbitMQ plugin that shows who connects, from where and how they authenticate — accounts, logins, sessions and metrics, with history that survives restarts.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
 :root{
   --bg:#f3f4f1; --panel:#fbfbf9; --panel-2:#e9ebe6;
@@ -81,6 +81,7 @@ img{max-width:100%;display:block}
 .shot .bar i{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
 .shot .bar span{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hero .shot{margin-top:44px}
+.hero{padding-bottom:48px}
 
 section{padding-block:64px;border-top:1px solid var(--line)}
 .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px}
@@ -140,19 +141,70 @@ footer .fr{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
 footer a{color:var(--ink-2)}
 .themebtn{margin-left:auto;font-family:var(--mono);font-size:12.5px;background:none;color:var(--ink-2);border:1px solid var(--line-2);border-radius:6px;padding:4px 10px;cursor:pointer}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ---- msgyard site theme: shared by msgyard.bitey.ai and its project pages ---- */
+:root{
+  --bg:#f5f6f3; --panel:#ffffff; --panel-2:#eceee9;
+  --ink:#10171a; --ink-2:#48535a; --ink-3:#7d878c;
+  --line:#dde1dc; --line-2:#c9cfca;
+  --accent:#1c7a66; --accent-ink:#ffffff; --accent-soft:#dcefe9;
+  --night:#0c171b; --night-2:#132328; --night-ink:#e9f0ed; --night-dim:#8fa4a3; --rail:#28424a;
+  --signal:#35b39a; --amber:#f0b24a;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1417; --panel:#151c20; --panel-2:#1b2429;
+    --ink:#e8eeec; --ink-2:#a7b3b6; --ink-3:#768388;
+    --line:#232d32; --line-2:#2f3b41;
+    --accent:#5fd0b6; --accent-ink:#06110f; --accent-soft:#143029;
+    --night:#091114; --night-2:#0f1c20;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1417; --panel:#151c20; --panel-2:#1b2429;
+  --ink:#e8eeec; --ink-2:#a7b3b6; --ink-3:#768388;
+  --line:#232d32; --line-2:#2f3b41;
+  --accent:#5fd0b6; --accent-ink:#06110f; --accent-soft:#143029;
+  --night:#091114; --night-2:#0f1c20;
+}
+body{background:var(--bg)}
+h1,h2{font-family:var(--cond)}
+h2{font-weight:700;letter-spacing:-.01em}
+.yb{background:var(--night)!important;color:var(--night-ink);border-bottom:0!important}
+.yb .wrap{position:relative}
+header.yb .wrap{display:flex;align-items:center;gap:18px;padding-block:18px}
+.my-brand{display:flex;align-items:center;gap:10px;color:var(--night-ink)!important;font-family:var(--mono);font-size:14px;text-decoration:none!important}
+.my-brand span{color:var(--night-dim)}
+.my-brand b{font-weight:600}
+header.yb nav{margin-left:auto;display:flex;gap:22px;align-items:center}
+header.yb nav a{color:var(--night-dim)!important;font-size:14px;font-weight:500}
+header.yb nav a:hover{color:var(--night-ink)!important;text-decoration:none}
+header.yb .ghbtn,header.yb .gh{color:var(--night-ink)!important;border:1px solid var(--rail)!important;background:none!important}
+header.yb .toggle,header.yb .themebtn{color:var(--night-dim);border:1px solid var(--rail);background:none}
+.yb h1{color:var(--night-ink);font-weight:700;letter-spacing:-.02em;line-height:1.02}
+.yb h1 .q,.yb h1 em{color:var(--signal);font-style:normal}
+.yb .eyebrow{color:var(--signal)}
+.yb .lede,.yb .metabar,.yb .meta{color:var(--night-dim)}
+.yb .lede b,.yb .metabar b{color:var(--night-ink)}
+.yb code{background:rgba(255,255,255,.08);color:var(--night-ink)}
+.yb .btn.primary{background:var(--signal)!important;color:#06110f!important;border-color:var(--signal)!important}
+.yb .btn.ghost{border-color:var(--rail)!important;color:var(--night-ink)!important;background:none}
+.my-rail{background:var(--night);line-height:0}
+.my-rail svg{display:block;width:100%;height:auto}
+.my-rail .r{stroke:var(--rail)}
+.my-rail .l{stroke:var(--signal)}
+footer.yb{padding-block:30px 44px;color:var(--night-dim)}
+footer.yb a{color:var(--night-ink)}
+.yb .shot{border-color:var(--rail)}
 </style>
 </head>
 <body>
 
-<header class="top">
+<header class="top yb">
   <div class="wrap">
-    <a class="brand" href="https://msgyard.bitey.ai/" aria-label="msgyard">
-      <svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true">
-        <path d="M1 9 H7 C11 9 12 2 17 2 H21 M7 9 H21 M7 9 C11 9 12 16 17 16 H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="4" cy="9" r="2.4" fill="var(--accent)"/>
-      </svg>
-      <span>msgyard /</span><b>access insight</b>
-    </a>
+    <a class="my-brand" href="https://msgyard.bitey.ai/" aria-label="msgyard">
+      <svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true"><path d="M1 9 H7 C11 9 12 2 17 2 H21 M7 9 H21 M7 9 C11 9 12 16 17 16 H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4" cy="9" r="2.4" fill="var(--signal)"/></svg>
+      <span>msgyard /</span><b>access insight</b></a>
     <nav>
       <a class="hide" href="#what">What it shows</a>
       <a class="hide" href="#right">How it stays right</a>
@@ -163,7 +215,7 @@ footer a{color:var(--ink-2)}
 </header>
 
 <main>
-  <div class="wrap hero">
+  <div class="yb"><div class="wrap hero">
     <div class="eyebrow">RabbitMQ plugin · rabbitmq_access_insight</div>
     <h1>Know who connects to RabbitMQ, and how.</h1>
     <p class="lede">Every account against actual logins, every login by result and authentication method, every session — kept on each node, surviving restarts, shown in the management UI you already use.</p>
@@ -176,7 +228,9 @@ footer a{color:var(--ink-2)}
       <div class="bar"><i></i><i></i><i></i><span>Management UI › Access</span></div>
       <img src="img/overview.png" width="1360" height="860" alt="The Access overview: accounts by activity, authentication methods and the history kept on each node of a three-node cluster">
     </figure>
-  </div>
+  </div></div>
+<div class="my-rail" aria-hidden="true"><svg viewBox="0 0 1440 56" preserveAspectRatio="none"><g fill="none" stroke-width="2"><path class="r" d="M0 28 H240 C320 28 340 8 420 8 H1440"/><path class="l" d="M0 28 H1440"/><path class="r" d="M240 28 C320 28 340 48 420 48 H1440" stroke-dasharray="3 9"/></g></svg></div>
+
 
   <section id="what">
     <div class="wrap">
@@ -322,7 +376,7 @@ footer a{color:var(--ink-2)}
   </section>
 </main>
 
-<footer>
+<footer class="yb">
   <div class="wrap">
     <div class="fr">
       <span>Access Insight for RabbitMQ · <a href="https://github.com/msgyard/rabbitmq-access-insight/blob/main/LICENSE">MPL-2.0</a></span>
