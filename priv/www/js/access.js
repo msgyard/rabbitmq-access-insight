@@ -151,7 +151,8 @@ var ACCESS_UI = (function () {
         ['active_24h', 'active_7d', 'dormant', 'never_used', 'attempts_only'].forEach(function (k) {
             h += '<option value="' + k + '"' + (k == state ? ' selected' : '') + '>' + STATE_LABEL[k] + '</option>';
         });
-        h += '</select> Name <input type="text" name="search" value="' + esc(q) + '"> <input type="submit" value="Filter"> ' +
+        h += '</select> Name <input type="text" name="search" value="' + esc(q) + '"> ' +
+            '<input type="submit" value="Filter" style="display:inline-block;margin:0 8px;vertical-align:middle"> ' +
             '<span class="ai-dim">' + num(r.total) + ' accounts</span></form>';
         h += '<table class="list"><tr><th>Account</th><th>Defined</th><th>State</th><th>Connected</th><th>Sessions</th>' +
             '<th>Online</th><th>Last login</th><th>Failed</th><th>Methods</th><th>Sources</th></tr>';
@@ -306,7 +307,7 @@ var ACCESS_UI = (function () {
         '.ai-active_24h,.ai-active_7d{background:#d7f5dc;color:#11622a}.ai-dormant{background:#eceff2;color:#555}' +
         '.ai-never_used{background:#fff0d9;color:#8a4b00}.ai-attempts_only{background:#fde2e1;color:#8c1d18}' +
         '.ai-dim{color:#888}.ai-note{border-left:3px solid #f0a000;background:rgba(240,160,0,.08);padding:4px 12px;margin:10px 0}' +
-        '.ai-filter{margin:6px 0 10px}.ai-cols{display:flex;gap:20px;flex-wrap:wrap}.ai-cols>div{flex:1;min-width:280px}' +
+        '.ai-filter{margin:6px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ai-filter input[type=submit]{margin:0 6px}.ai-cols{display:flex;gap:20px;flex-wrap:wrap}.ai-cols>div{flex:1;min-width:280px}' +
         '.ai-chart{height:120px;display:flex;flex-direction:column;border-bottom:1px solid #ccc}' +
         '.ai-row{flex:1;display:flex;align-items:flex-end;gap:2px}.ai-row.ai-down{align-items:flex-start;border-top:1px solid #ccc}' +
         '.ai-bar{flex:1;min-width:3px}' +

@@ -1,0 +1,7 @@
+{
+  "name": "rabbitmq-access-insight-ui-tests",
+  "private": true,
+  "type": "module",
+  "description": "Screenshots and UI checks of the management UI Access tab",
+  "devDependencies": { "playwright": "^1.63.0" }
+}

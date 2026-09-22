@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Access Insight for RabbitMQ</title>
+<meta name="description" content="A RabbitMQ plugin that shows who connects, from where and how they authenticate — accounts, logins, sessions and metrics, with history that survives restarts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#fbfbf9; --panel-2:#e9ebe6;
+  --ink:#14181a; --ink-2:#4b5356; --ink-3:#7c8588;
+  --line:#dadfdb; --line-2:#c7cdc9;
+  --accent:#2e5b8a; --accent-ink:#fff; --accent-soft:#dde7f1;
+  --ok:#2f7d4f; --warn:#a36200; --bad:#b3372f;
+  --code-bg:#171b1d; --code-ink:#e6ebe8; --code-dim:#8e989b;
+  --shadow:0 1px 2px rgba(20,24,26,.06),0 12px 32px -12px rgba(20,24,26,.22);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#101315; --panel:#161a1c; --panel-2:#1d2225;
+    --ink:#e8ecea; --ink-2:#a9b2b4; --ink-3:#778285;
+    --line:#252b2e; --line-2:#323a3d;
+    --accent:#7fb0e0; --accent-ink:#0e1418; --accent-soft:#1a2b3b;
+    --ok:#5fc08a; --warn:#e3a54a; --bad:#e8766d;
+    --code-bg:#0b0d0e; --code-ink:#e6ebe8; --code-dim:#7f898c;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 36px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101315; --panel:#161a1c; --panel-2:#1d2225;
+  --ink:#e8ecea; --ink-2:#a9b2b4; --ink-3:#778285;
+  --line:#252b2e; --line-2:#323a3d;
+  --accent:#7fb0e0; --accent-ink:#0e1418; --accent-soft:#1a2b3b;
+  --ok:#5fc08a; --warn:#e3a54a; --bad:#e8766d;
+  --code-bg:#0b0d0e; --code-ink:#e6ebe8; --code-dim:#7f898c;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 36px -14px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:24px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.88em;background:var(--panel-2);padding:1px 5px;border-radius:4px}
+h1,h2,h3{text-wrap:balance;line-height:1.15;margin:0}
+p{margin:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+img{max-width:100%;display:block}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{display:flex;align-items:center;gap:16px;padding-block:13px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-family:var(--mono);font-size:14px}
+.brand:hover{text-decoration:none}
+.brand b{font-weight:600}
+.brand span{color:var(--ink-3)}
+.top nav{margin-left:auto;display:flex;gap:22px;align-items:center}
+.top nav a{color:var(--ink-2);font-size:14px;font-weight:500}
+.top nav a:hover{color:var(--ink);text-decoration:none}
+.gh{font-family:var(--mono);font-size:13px;border:1px solid var(--line-2);color:var(--ink)!important;padding:6px 12px;border-radius:7px}
+@media(max-width:640px){.top nav a.hide{display:none}}
+
+.hero{padding-block:64px 36px}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
+.hero h1{font-size:clamp(32px,5.4vw,56px);font-weight:700;letter-spacing:-.028em;max-width:16ch}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--ink-2);max-width:60ch;margin-top:20px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.btn{font-family:var(--mono);font-size:14px;font-weight:500;padding:11px 18px;border-radius:8px;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:var(--line-2);color:var(--ink)}
+.btn:hover{text-decoration:none;filter:brightness(1.06)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:26px;font-family:var(--mono);font-size:12.5px;color:var(--ink-3)}
+
+/* a browser frame around real screenshots */
+.shot{border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.shot .bar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--line-2)}
+.shot .bar i{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+.shot .bar span{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .shot{margin-top:44px}
+
+section{padding-block:64px;border-top:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px}
+section h2{font-size:clamp(24px,3.2vw,32px);letter-spacing:-.02em;max-width:24ch}
+.intro{color:var(--ink-2);max-width:62ch;margin-top:14px}
+
+.feature{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:40px;align-items:center;margin-top:48px}
+.feature.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+.feature.flip .text{order:2}
+.feature h3{font-size:21px;letter-spacing:-.01em}
+.feature p{color:var(--ink-2);margin-top:12px}
+.feature ul{margin:14px 0 0;padding-left:18px;color:var(--ink-2)}
+.feature li{margin-top:6px}
+@media(max-width:860px){.feature,.feature.flip{grid-template-columns:1fr;gap:20px}.feature.flip .text{order:0}}
+
+/* how it stays right */
+.flow{margin-top:34px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;overflow-x:auto}
+.flow svg{display:block;min-width:720px;width:100%;height:auto}
+.flow .n{fill:var(--panel-2);stroke:var(--line-2)}
+.flow .own{fill:var(--accent-soft);stroke:var(--accent)}
+.flow text{font-family:var(--mono);font-size:12px;fill:var(--ink-2)}
+.flow .t{fill:var(--ink);font-weight:600;font-size:13px}
+.flow .arr{stroke:var(--ink-3);fill:none;stroke-width:1.4}
+.flow .rep{stroke:var(--accent);fill:none;stroke-width:1.4;stroke-dasharray:4 4}
+.rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 40px;margin-top:34px}
+.rules h3{font-size:16.5px}
+.rules p{color:var(--ink-2);margin-top:6px;font-size:15px}
+@media(max-width:720px){.rules{grid-template-columns:1fr}}
+
+/* numbers */
+.nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:34px}
+.nums div{background:var(--panel);padding:20px}
+.nums b{display:block;font-family:var(--mono);font-size:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.nums span{display:block;color:var(--ink-2);font-size:14px;margin-top:6px}
+@media(max-width:860px){.nums{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.nums{grid-template-columns:1fr}}
+.fine{color:var(--ink-3);font-size:13.5px;margin-top:14px;max-width:80ch}
+
+/* install */
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:30px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.step .no{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.step h3{font-size:16px;margin-top:6px}
+.step p{color:var(--ink-2);font-size:14.5px;margin-top:8px}
+pre{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:13px;line-height:1.6;border-radius:8px;padding:14px 16px;overflow-x:auto;margin:12px 0 0}
+pre .c{color:var(--code-dim)}
+@media(max-width:860px){.steps{grid-template-columns:1fr}}
+
+table.where{width:100%;border-collapse:collapse;margin-top:26px;font-size:15px}
+table.where th,table.where td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.where th{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.tw{overflow-x:auto}
+
+footer{border-top:1px solid var(--line);padding-block:30px 44px;color:var(--ink-3);font-size:13.5px}
+footer .wrap{display:grid;gap:10px}
+footer .fr{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center}
+footer a{color:var(--ink-2)}
+.themebtn{margin-left:auto;font-family:var(--mono);font-size:12.5px;background:none;color:var(--ink-2);border:1px solid var(--line-2);border-radius:6px;padding:4px 10px;cursor:pointer}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="https://msgyard.bitey.ai/" aria-label="msgyard">
+      <svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true">
+        <path d="M1 9 H7 C11 9 12 2 17 2 H21 M7 9 H21 M7 9 C11 9 12 16 17 16 H21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="4" cy="9" r="2.4" fill="var(--accent)"/>
+      </svg>
+      <span>msgyard /</span><b>access insight</b>
+    </a>
+    <nav>
+      <a class="hide" href="#what">What it shows</a>
+      <a class="hide" href="#right">How it stays right</a>
+      <a class="hide" href="#install">Install</a>
+      <a class="gh" id="ghtop" href="https://github.com/msgyard/rabbitmq-access-insight">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="eyebrow">RabbitMQ plugin · rabbitmq_access_insight</div>
+    <h1>Know who connects to RabbitMQ, and how.</h1>
+    <p class="lede">Every account against actual logins, every login by result and authentication method, every session — kept on each node, surviving restarts, shown in the management UI you already use.</p>
+    <div class="cta">
+      <a class="btn primary dl" href="https://github.com/msgyard/rabbitmq-access-insight/releases/latest">Download <span class="dlver"></span></a>
+      <a class="btn ghost" href="https://github.com/msgyard/rabbitmq-access-insight#readme">Read the docs</a>
+    </div>
+    <div class="meta"><span>RabbitMQ 3.12 – 4.3</span><span>Erlang/OTP 25 – 28</span><span>AMQP 0-9-1 · AMQP 1.0 · MQTT · STOMP</span><span>MPL-2.0</span></div>
+    <figure class="shot" style="margin-inline:0;margin-bottom:0">
+      <div class="bar"><i></i><i></i><i></i><span>Management UI › Access</span></div>
+      <img src="img/overview.png" width="1360" height="860" alt="The Access overview: accounts by activity, authentication methods and the history kept on each node of a three-node cluster">
+    </figure>
+  </div>
+
+  <section id="what">
+    <div class="wrap">
+      <div class="kicker">What it shows</div>
+      <h2>The questions an audit, a migration or an incident asks first.</h2>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Which accounts are really used?</h3>
+          <p>Every account defined in the cluster next to what actually logged in: last login, sessions, time online, sources, clients.</p>
+          <ul>
+            <li><b>Never used</b> accounts, ready to remove.</li>
+            <li><b>Dormant</b> ones, last seen weeks ago.</li>
+            <li>Accounts <b>in use but not defined here</b> — LDAP or OAuth 2 users.</li>
+            <li>Names that only ever <b>failed</b>, like a password-guessing run.</li>
+          </ul>
+        </div>
+        <figure class="shot" style="margin:0">
+          <div class="bar"><i></i><i></i><i></i><span>Access › Accounts</span></div>
+          <img src="img/accounts.png" width="1360" height="860" alt="Accounts table with state, sessions, time online, last login, failures and methods" loading="lazy">
+        </figure>
+      </div>
+
+      <div class="feature flip">
+        <div class="text">
+          <h3>How does each one authenticate?</h3>
+          <p>Password, token or certificate, for every session. When the authentication backend reports the credential it verified, the method is <b>confirmed</b>; otherwise it is <b>inferred</b> from the SASL mechanism, the configured backends and the user database — and labelled as such.</p>
+          <p>Sources, clients, protocols and virtual hosts per account, with a daily history.</p>
+        </div>
+        <figure class="shot" style="margin:0">
+          <div class="bar"><i></i><i></i><i></i><span>Access › orders-service</span></div>
+          <img src="img/account.png" width="1360" height="860" alt="One account: sessions, time online, methods, protocols, a 30-day chart and its sources and clients" loading="lazy">
+        </figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Where do logins fail?</h3>
+          <p>RabbitMQ checks a login in three steps. Each failure is recorded with the step that refused it and RabbitMQ's own reason:</p>
+          <ul>
+            <li><b>failed</b> — the credentials were refused;</li>
+            <li><b>refused</b> — the credentials were fine, then authorization or the virtual host said no.</li>
+          </ul>
+          <p>By account, source and reason, per day.</p>
+        </div>
+        <figure class="shot" style="margin:0">
+          <div class="bar"><i></i><i></i><i></i><span>Access › Authentication</span></div>
+          <img src="img/authentication.png" width="1360" height="860" alt="Logins per day with failures below, methods, and failed logins by account, source and reason" loading="lazy">
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="right">
+    <div class="wrap">
+      <div class="kicker">How it stays right</div>
+      <h2>A history you can reconcile, not a best guess.</h2>
+      <p class="intro">Each node records what happens on it. Account totals are copied to every other node, and whatever could not be recorded is shown, with its time and reason.</p>
+      <div class="flow" role="img" aria-label="Each node writes its own journal and totals; totals are copied to the other nodes; any node answers for the cluster">
+        <svg viewBox="0 0 900 280">
+          <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+          <g style="color:var(--ink-3)">
+            <text x="10" y="36" class="t">events</text>
+            <text x="10" y="84">logins,</text>
+            <text x="10" y="100">sessions</text>
+            <path class="arr" d="M130 58 H176" marker-end="url(#a)"/>
+          </g>
+          <g>
+            <rect class="n own" x="180" y="10" width="200" height="100" rx="8"/>
+            <text x="196" y="36" class="t">node A</text>
+            <text x="196" y="58">journal → own totals</text>
+            <text x="196" y="76">snapshot every 5 min</text>
+            <text x="196" y="94">copies of B, C</text>
+            <rect class="n" x="420" y="10" width="200" height="100" rx="8"/>
+            <text x="436" y="36" class="t">node B</text>
+            <text x="436" y="58">journal → own totals</text>
+            <text x="436" y="94">copies of A, C</text>
+            <rect class="n" x="660" y="10" width="200" height="100" rx="8"/>
+            <text x="676" y="36" class="t">node C</text>
+            <text x="676" y="58">journal → own totals</text>
+            <text x="676" y="94">copies of A, B</text>
+          </g>
+          <g style="color:var(--accent)">
+            <path class="rep" d="M380 60 H416" marker-end="url(#a)"/>
+            <path class="rep" d="M620 60 H656" marker-end="url(#a)"/>
+            <path class="rep" d="M760 112 C760 142 280 142 280 114" marker-end="url(#a)"/>
+            <text x="262" y="170" style="fill:var(--accent)">totals copied by version; each node writes only its own</text>
+          </g>
+          <g style="color:var(--ink-3)">
+            <path class="arr" d="M520 184 V212" marker-end="url(#a)"/>
+            <rect class="n" x="330" y="216" width="380" height="50" rx="8"/>
+            <text x="346" y="238" class="t">any node answers for the cluster</text>
+            <text x="346" y="256">one copy per node · counted once</text>
+          </g>
+        </svg>
+      </div>
+      <div class="rules">
+        <div><h3>Restarts lose nothing</h3><p>The journal is made durable every second and replayed after the last snapshot. An orderly stop loses nothing; a hard crash at most one second, and is marked.</p></div>
+        <div><h3>A lost node keeps its accounts</h3><p>Account totals of every node live on the others. Wipe a node's disk, or remove it from the cluster: its accounts' history is still there, until you choose to forget it.</p></div>
+        <div><h3>Never counted twice</h3><p>Each node writes only its own totals; copies carry versions and never move backwards. The cluster view takes exactly one copy per node.</p></div>
+        <div><h3>Gaps are shown, not hidden</h3><p>An unclean stop, a disk alarm, or events dropped to keep the broker fast are recorded with their time range — not smoothed over.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="measured">
+    <div class="wrap">
+      <div class="kicker">Measured</div>
+      <h2>Cheap where it matters.</h2>
+      <p class="intro">It works only when connections open and close, in its own processes, and never blocks a connection or a message.</p>
+      <div class="nums">
+        <div><b>+5.8%</b><span>broker CPU per connection, RabbitMQ 4.3.6 (+6.8% on 3.12.14), under a constant open–close storm</span></div>
+        <div><b>0</b><span>work per message: publishing 50,000 messages wrote no records; throughput unchanged</span></div>
+        <div><b>≤ 1 s</b><span>of history a hard crash can lose — and it is marked</span></div>
+        <div><b>32 / 32</b><span>three-node cluster checks: no double counting, wiped disk, stopped node, isolation, forgetting a node</span></div>
+      </div>
+      <p class="fine">Connection storm: 6,000 connections per round (open, channel, close) from six clients, three rounds with the plugin disabled and enabled in turn on the same node, CPU time of the broker process minus its idle rate. Real workloads with long-lived connections see a small fraction of this. Numbers from a laptop; reproduce them with <code>test/perf/bench.py</code>.</p>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="kicker">Install</div>
+      <h2>Three steps, no restart.</h2>
+      <div class="steps">
+        <div class="step"><div class="no">1</div><h3>Download</h3><p>The <code>.ez</code> for your broker's Erlang/OTP: <code>otp25</code>, <code>otp26</code>, or <code>otp27</code> for OTP 27 – 29.</p></div>
+        <div class="step"><div class="no">2</div><h3>Copy</h3><p>Into the plugins directory of every node.</p></div>
+        <div class="step"><div class="no">3</div><h3>Enable</h3><p>On every node; it picks up connections already open.</p>
+<pre>rabbitmq-plugins enable \
+  rabbitmq_access_insight</pre></div>
+      </div>
+      <div class="tw">
+      <table class="where">
+        <tr><th>Where</th><th>Needs</th><th></th></tr>
+        <tr><td><b>Access</b> tab in the management UI</td><td><code>rabbitmq_management</code></td><td>monitoring or administrator users</td></tr>
+        <tr><td><code>/api/access/v1/…</code> on the management port</td><td><code>rabbitmq_management</code></td><td>same login as the management API</td></tr>
+        <tr><td><code>rabbitmq_access_*</code> on <code>:15692/metrics</code></td><td><code>rabbitmq_prometheus</code></td><td>next to RabbitMQ's own metrics</td></tr>
+        <tr><td><code>127.0.0.1:15693</code></td><td>nothing</td><td>the plugin's own status page, API and metrics</td></tr>
+      </table>
+      </div>
+      <p class="fine">Nothing else is required: when a piece is missing, the tab and the status page say what it affects and how to enable it. It only observes — it never takes part in allowing a connection, and stores no passwords, tokens or message bodies.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fr">
+      <span>Access Insight for RabbitMQ · <a href="https://github.com/msgyard/rabbitmq-access-insight/blob/main/LICENSE">MPL-2.0</a></span>
+      <a href="https://msgyard.bitey.ai/">msgyard</a>
+      <a id="ghfoot" href="https://github.com/msgyard/rabbitmq-access-insight">GitHub</a>
+      <button class="themebtn" id="theme" type="button">Theme</button>
+    </div>
+    <p>An independent community project, not affiliated with, endorsed or sponsored by Broadcom or the RabbitMQ team. RabbitMQ is a trademark of Broadcom Inc. and its subsidiaries. Screenshots show fictional demo data.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root=document.documentElement, key="rai-theme";
+  try{ var t=localStorage.getItem(key); if(t==="light"||t==="dark") root.setAttribute("data-theme",t); }catch(e){}
+  document.getElementById("theme").addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    if(!cur) cur=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+    var next=cur==="dark"?"light":"dark";
+    root.setAttribute("data-theme",next);
+    try{ localStorage.setItem(key,next); }catch(e){}
+  });
+  // Name the actual latest release when the API is reachable.
+  fetch("https://api.github.com/repos/msgyard/rabbitmq-access-insight/releases/latest")
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ if(j && j.tag_name) [].forEach.call(document.querySelectorAll(".dlver"), function(e){ e.textContent=j.tag_name; }); })
+    .catch(function(){});
+})();
+</script>
+</body>
+</html>

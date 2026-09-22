@@ -4,23 +4,22 @@
 #
 # Copyright (c) 2026 martinx
 # SPDX-License-Identifier: MPL-2.0
-"""Drive logins over AMQP 0-9-1, MQTT and STOMP against a node started by
-node.sh, and print what the node was asked to do, as JSON, so the caller can
-compare it with what the plugin recorded. Needs `pika`.
+"""Logins for node_e2e.sh, against a node started by node.sh. Needs pika.
 
-    python collector_e2e.py <password> <release file>
-
-Users are created by the caller. One AMQP connection is kept open until the
-release file appears.
+    python collector_e2e.py --hold <user> <password> <release file>
+        keep one AMQP 0-9-1 connection open until the release file appears
+    python collector_e2e.py --protocols <user> <password>
+        3 AMQP 0-9-1 logins, 2 wrong passwords, an unknown user, a login
+        refused by the virtual host (user bob), then MQTT and STOMP, each
+        once accepted and once refused
 """
 import json, os, socket, struct, sys, time
 import pika
 
-PW, RELEASE = sys.argv[1], sys.argv[2]
 AMQP, MQTT, STOMP = 5701, 1901, 61701
 
 
-def amqp(user, pw, vhost='/', keep=False):
+def amqp(user, pw, vhost='/'):
     p = pika.ConnectionParameters('127.0.0.1', AMQP, vhost, pika.PlainCredentials(user, pw),
                                   socket_timeout=5, client_properties={'connection_name': 'e2e-app'})
     try:
@@ -28,10 +27,7 @@ def amqp(user, pw, vhost='/', keep=False):
     except Exception:
         return None
     c.channel()
-    if keep:
-        return c
-    c.close()
-    return True
+    return c
 
 
 def mqtt(user, pw):
@@ -57,31 +53,20 @@ def stomp(user, pw):
     return ok
 
 
-did = []
-keep = []
-for i in range(3):
-    c = amqp('alice', PW, keep=(i == 0))
-    did.append(('alice', 'amqp', 'ok' if c else 'fail'))
-    if c is not True and c:
-        keep.append(c)
-for _ in range(2):
-    did.append(('alice', 'amqp', 'ok' if amqp('alice', 'wrong') else 'fail'))
-did.append(('ghost', 'amqp', 'ok' if amqp('ghost', 'x') else 'fail'))
-did.append(('bob', 'amqp-vhost-denied', 'ok' if amqp('bob', PW, '/') else 'refused'))
-did.append(('alice', 'mqtt', 'ok' if mqtt('alice', PW) else 'fail'))
-did.append(('alice', 'mqtt', 'ok' if mqtt('alice', 'wrong') else 'fail'))
-did.append(('alice', 'stomp', 'ok' if stomp('alice', PW) else 'fail'))
-did.append(('alice', 'stomp', 'ok' if stomp('alice', 'wrong') else 'fail'))
-time.sleep(1)
-print(json.dumps({'did': did, 'open': len(keep)}))
-sys.stdout.flush()
-# keep one AMQP connection open until released
-while not os.path.exists(RELEASE):
-    for c in keep:
+mode, user, pw = sys.argv[1], sys.argv[2], sys.argv[3]
+if mode == '--hold':
+    c = amqp(user, pw)
+    while not os.path.exists(sys.argv[4]):
         c.process_data_events(0.2)
-    time.sleep(0.2)
-for c in keep:
-    try:
-        c.close()
-    except Exception:
-        pass
+    c.close()
+else:
+    did = []
+    for _ in range(3):
+        c = amqp(user, pw); did.append(bool(c)); c and c.close()
+    for _ in range(2):
+        did.append(bool(amqp(user, 'wrong')))
+    did.append(bool(amqp('ghost', 'x')))
+    did.append(bool(amqp('bob', pw, '/')))
+    did += [mqtt(user, pw), mqtt(user, 'wrong'), stomp(user, pw), stomp(user, 'wrong')]
+    time.sleep(1)
+    print(json.dumps(did))
