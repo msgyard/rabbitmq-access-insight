@@ -1,0 +1,8 @@
+_build/
+*.beam
+*.ez
+ebin/
+.rebar3/
+erl_crash.dump
+# Working design drafts are kept locally, not published.
+docs/设计方案_*.html

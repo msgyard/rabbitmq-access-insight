@@ -1,0 +1,33 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: ['26', '27']   # BEAM loads on the build OTP and up to +2 -> covers OTP 26-29
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { otp-version: '${{ matrix.otp }}', rebar3-version: '3' }
+      - run: ./build-ez.sh --rmq-release 3.13.7
+      - uses: softprops/action-gh-release@v2
+        with: { files: _build/*.ez }
+
+  # OTP 25 artifact (loads on OTP 25-27), built in the official Erlang image
+  # because setup-beam does not publish OTP 25 for current runners. Built
+  # against 3.12, the newest RabbitMQ line that still supports OTP 25.
+  build-otp25:
+    runs-on: ubuntu-latest
+    container: erlang:25
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils zip
+      - uses: actions/checkout@v4
+      - run: ./build-ez.sh --rmq-release 3.12.14
+      - uses: softprops/action-gh-release@v2
+        with: { files: _build/*.ez }

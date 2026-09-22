@@ -1,0 +1,15 @@
+%% This Source Code Form is subject to the terms of the Mozilla Public
+%% License, v. 2.0. If a copy of the MPL was not distributed with this
+%% file, You can obtain one at https://mozilla.org/MPL/2.0/.
+%%
+%% Copyright (c) 2026 martinx
+%% SPDX-License-Identifier: MPL-2.0
+%%
+{application, rabbitmq_access_insight,
+ [{description, "Access analytics for RabbitMQ: who connects, from where, and how they authenticate"},
+  {vsn, "0.1.0-dev"},
+  {modules, []},
+  {registered, [rabbit_access_insight_sup, rabbit_access_insight_collector]},
+  {applications, [kernel, stdlib, rabbit_common, rabbit]},
+  {mod, {rabbit_access_insight_app, []}},
+  {env, []}]}.
